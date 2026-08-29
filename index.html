@@ -380,21 +380,25 @@ function genMosaic(){
 function genQuad(){
   const {w,h}=sample, out=[];
   const thr=90-S.quad.detail*0.85;          // detail 0..100 -> thr 90..5
-  const minSize=Math.max(4,w/160);
-  (function split(x,y,ww,hh,depth){
-    const v=rectVar(x,y,x+ww,y+hh);
-    if(depth<S.quad.maxDepth && v>thr && ww>minSize*2 && hh>minSize*2){
-      const hw=ww/2,hh2=hh/2;
-      split(x,y,hw,hh2,depth+1);      split(x+hw,y,hw,hh2,depth+1);
-      split(x,y+hh2,hw,hh2,depth+1);  split(x+hw,y+hh2,hw,hh2,depth+1);
+  const minSize=Math.max(4,Math.max(w,h)/160);
+  // square root region centred on the image: every cell is a square,
+  // edge squares crop evenly against the frame
+  const side=Math.max(w,h), ox=(w-side)/2, oy=(h-side)/2;
+  (function split(x,y,s,depth){
+    if(x+s<=0||y+s<=0||x>=w||y>=h)return;   // fully outside the image
+    const v=rectVar(x,y,x+s,y+s);
+    if(depth<S.quad.maxDepth && v>thr && s>minSize*2){
+      const hs=s/2;
+      split(x,y,hs,depth+1);     split(x+hs,y,hs,depth+1);
+      split(x,y+hs,hs,depth+1);  split(x+hs,y+hs,hs,depth+1);
     }else{
-      const g=S.quad.gap/100*Math.min(ww,hh)*0.5;
-      const col=rectAvg(x,y,x+ww,y+hh);
-      const mk=fillFor(x+ww/2,y+hh/2,Math.min(ww,hh));
-      out.push({kind:'rect',x:x+g,y:y+g,w:ww-g*2,h:hh-g*2,
-        rx:(S.quad.radius/100)*Math.min(ww-g*2,hh-g*2)/2,fill:mk(col)});
+      const g=S.quad.gap/100*s*0.5;
+      const col=rectAvg(x,y,x+s,y+s);
+      const mk=fillFor(x+s/2,y+s/2,s);
+      out.push({kind:'rect',x:x+g,y:y+g,w:s-g*2,h:s-g*2,
+        rx:(S.quad.radius/100)*(s-g*2)/2,fill:mk(col)});
     }
-  })(0,0,w,h,0);
+  })(ox,oy,side,0);
   return out;
 }
 
@@ -574,8 +578,9 @@ function guideSVG(){
       (showHex?`<text x="${P(x+sw*1.15)}" y="${P(y+sw*0.62)}" font-size="${P(fs*0.8)}" fill="#333" stroke="none">${hex(p)}</text>`:'');
   });
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h+legendH+8}" font-family="Helvetica,Arial,sans-serif">`+
+    `<defs><clipPath id="art"><rect width="${w}" height="${h}"/></clipPath></defs>`+
     `<rect width="${w}" height="${h+legendH+8}" fill="#ffffff"/>`+
-    `<g fill="none" stroke="#555" stroke-width="${Math.max(0.4,w/1600)}">${body.replace(/<text /g,'<text stroke="none" fill="#555" ')}</g>`+
+    `<g clip-path="url(#art)" fill="none" stroke="#555" stroke-width="${Math.max(0.4,w/1600)}">${body.replace(/<text /g,'<text stroke="none" fill="#555" ')}</g>`+
     `<g>${legend}</g></svg>`;
 }
 
