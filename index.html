@@ -194,7 +194,8 @@ const S = {
   bg:'paper', bgCustom:'#f4efe6',
   stageBg:'black',
   paletteK:0,           // 0 = off
-  harmony:'off',        // off | analogous | complement | triadic | tonal
+  harmony:'off',        // off | refine | analogous | complement | triadic | tonal
+  harmonyAmt:35,        // strength %
   sat:1.0,
   grad:'off',           // off | linear
   gradAngle:135,
@@ -338,37 +339,41 @@ function hsl2rgb([h,s,l]){
 const hueDist=(a,b)=>{const d=Math.abs(a-b)%1;return d>0.5?1-d:d};
 const hueMix=(a,b,t)=>{let d=b-a;d-=Math.round(d);return((a+d*t)%1+1)%1};
 
-function harmonizePalette(pal,mode){
+function harmonizePalette(pal,mode,amt){
+  const k=amt; // 0..1 strength — scales every adjustment
   const hsl=pal.map(rgb2hsl);
   // dominant hue: saturation-weighted circular mean
   let sx=0,sy=0;
   hsl.forEach(c=>{sx+=Math.cos(c[0]*2*Math.PI)*c[1];sy+=Math.sin(c[0]*2*Math.PI)*c[1]});
   const dom=((Math.atan2(sy,sx)/(2*Math.PI))%1+1)%1;
-  const poles={
+  const poles=mode==='refine'?null:{
     analogous:[dom-1/12,dom,dom+1/12],
     complement:[dom,dom+0.5],
     triadic:[dom,dom+1/3,dom+2/3],
     tonal:[dom],
   }[mode].map(h=>((h%1)+1)%1);
-  const pull=mode==='tonal'?0.9:0.72;
+  const pull=(mode==='tonal'?0.9:0.72)*k;
   const smean=hsl.reduce((a,c)=>a+c[1],0)/hsl.length;
   const out=hsl.map(([h,s,l])=>{
     if(s>0.06){ // leave near-neutrals as greys
-      let best=poles[0],bd=1;
-      for(const p of poles){const d=hueDist(h,p);if(d<bd){bd=d;best=p}}
-      h=hueMix(h,best,pull);
-      s+= (smean-s)*(mode==='tonal'?0.55:0.3);
-      if(mode==='complement')s=Math.min(1,s*1.12);
+      if(poles){
+        let best=poles[0],bd=1;
+        for(const p of poles){const d=hueDist(h,p);if(d<bd){bd=d;best=p}}
+        h=hueMix(h,best,pull);
+      }
+      s+= (smean-s)*(mode==='tonal'?0.55:mode==='refine'?0.45:0.3)*k;
+      if(mode==='complement')s=Math.min(1,s*(1+0.12*k));
     }
     return[h,s,l];
   });
-  // even out the lightness ladder (blend halfway toward equal steps)
+  // even out the lightness ladder (blend toward equal steps)
   const order=out.map((c,i)=>i).sort((a,b)=>out[a][2]-out[b][2]);
   const lmin=out[order[0]][2], lmax=out[order[order.length-1]][2];
+  const lk=(mode==='refine'?0.7:0.5)*k;
   order.forEach((idx,rank)=>{
     if(order.length<2)return;
     const target=lmin+(lmax-lmin)*rank/(order.length-1);
-    out[idx][2]+=(target-out[idx][2])*0.5;
+    out[idx][2]+=(target-out[idx][2])*lk;
   });
   return out.map(hsl2rgb).sort((a,b)=>lum(a)-lum(b));
 }
@@ -526,7 +531,7 @@ function rebuild(){
   if(!sample)return;
   if(S.paletteK>0 && !palette){
     palette=buildPalette(S.paletteK);
-    if(S.harmony!=='off') palette=harmonizePalette(palette,S.harmony);
+    if(S.harmony!=='off') palette=harmonizePalette(palette,S.harmony,S.harmonyAmt/100);
   }
   if(S.paletteK===0) palette=null;
   const rng=mulberry32(S.seed);
@@ -719,7 +724,8 @@ const CTRL=[
   ]},
   {group:'Colour',always:true,items:[
     {type:'range',key:'paletteK',label:'Limit palette',min:0,max:256,step:1,fmt:v=>v===0?'Off':v+' colours',reset:'palette'},
-    {type:'seg',key:'harmony',label:'Harmonise',grid:3,opts:[['off','Off'],['analogous','Analogous'],['complement','Complement'],['triadic','Triadic'],['tonal','Tonal']]},
+    {type:'seg',key:'harmony',label:'Harmonise',grid:3,opts:[['off','Off'],['refine','Refine'],['analogous','Analogous'],['complement','Complement'],['triadic','Triadic'],['tonal','Tonal']]},
+    {type:'range',key:'harmonyAmt',label:'Strength',min:5,max:100,step:5,fmt:v=>v+'%',reset:'palette',showIf:()=>S.harmony!=='off'},
     {type:'chips'},
     {type:'range',key:'sat',label:'Saturation',min:0,max:2.5,step:0.05,fmt:v=>'×'+(+v).toFixed(2),reset:'sample'},
     {type:'seg',key:'grad',label:'Shape fill',opts:[['off','Solid'],['linear','Gradient']]},
