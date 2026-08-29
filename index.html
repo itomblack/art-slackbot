@@ -189,6 +189,7 @@ const S = {
   style:'dots',
   seed:7,
   bg:'paper', bgCustom:'#f4efe6',
+  stageBg:'black',
   paletteK:0,           // 0 = off
   sat:1.0,
   grad:'off',           // off | linear
@@ -199,6 +200,7 @@ const S = {
   voronoi:{count:450, weight:55, mode:'cells', gap:0},
 };
 const BG_COLORS = {paper:[244,239,230], white:[255,255,255], black:[16,14,13]};
+const STAGE_BG = {black:'#100e0d', white:'#ffffff', paper:'#f4efe6'};
 
 /* ============================ utilities ============================ */
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
@@ -467,6 +469,7 @@ function rebuild(){
 /* ============================ rendering ============================ */
 const cv=document.getElementById('preview'), ctx=cv.getContext('2d');
 function draw(){
+  document.querySelector('.canvas-wrap').style.background=STAGE_BG[S.stageBg];
   if(!sample)return;
   const {w,h}=sample;
   const scale=Math.min(2,1600/Math.max(w,h));
@@ -653,6 +656,7 @@ const CTRL=[
   {group:'Canvas',always:true,items:[
     {type:'seg',key:'bg',label:'Background',grid:4,opts:[['paper','Paper'],['white','White'],['black','Black'],['avg','Avg'],['custom','Custom…']]},
     {type:'color',key:'bgCustom',label:'Custom colour',showIf:()=>S.bg==='custom'},
+    {type:'seg',key:'stageBg',label:'Surround',opts:[['black','Black'],['white','White'],['paper','Paper']]},
   ]},
 ];
 
